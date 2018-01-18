@@ -4,6 +4,9 @@ import numpy as np
 import scipy.stats
 
 
+feature_indexes = []
+
+
 def generate_all_integer_combinations(stop_integer):
     combinations_of_certain_length = dict()
     combinations_of_certain_length[1] = {(j,) for j in range(stop_integer)}
@@ -39,8 +42,8 @@ def means_and_std_factory(absolute_values=False):
     def means_and_std(a):
         if absolute_values:
             a = abs(a)
+        #print("mean_and_std_factory: ", np.hstack((np.mean(a, axis=0), np.std(a, axis=0))).shape)
         return np.hstack((np.mean(a, axis=0), np.std(a, axis=0)))
-
     return means_and_std
 
 
@@ -150,6 +153,8 @@ def interquartile_range(array):
 
 def magnitude_avg_and_std(array):
     magnitude = np.linalg.norm(array, axis=1)
+    #print("Fdddddd", np.average(magnitude))
+    #print("DDDDDDDD", np.average(magnitude))
     return np.average(magnitude), np.std(magnitude)
 
 
@@ -192,8 +197,9 @@ def frequency_domain_factory(sample_rate):
     return frequency_domain_features
 
 
-def segment_acceleration_and_calculate_features(sensor_data, sampling_rate=100, window_length=3.0, overlap=0.0,
+def segment_acceleration_and_calculate_features(sensor_data, sampling_rate=1, window_length=3.0, overlap=0.0,
                                                 remove_sign_after_calculation=True):
+    #print("len sensor data: ", sensor_data.shape)
     functions = [
         means_and_std_factory(False),
         means_and_std_factory(True),
@@ -217,29 +223,48 @@ def segment_acceleration_and_calculate_features(sensor_data, sampling_rate=100, 
         functions += [column_product_factory(t) for t in column_index_combinations]
 
     window_samples = int(sampling_rate * window_length)
+    #print("Windows samples ", window_samples)
     step_size = int(round(window_samples * (1.0 - overlap)))
 
     all_features = []
 
-    for window_start in np.arange(0, sensor_data.shape[0], step_size):
+  #  for window_start in np.arange(0, sensor_data.shape[0], step_size):
+    for window_start in np.arange(0, step_size):
         window_start = int(round(window_start))
         window_end = window_start + int(round(window_samples))
         if window_end > sensor_data.shape[0]:
             break
         window = sensor_data[window_start:window_end]
 
-        extracted_features = [func(window) for func in functions]
+        #extracted_features = [func(window) for func in functions]
+        extracted_features = []
+        #print("Windows start: ")
+        n = 0
+        for func in functions:
+            len_extracted_feature_before = len(extracted_features)
+            value = func(window)
+            #print("Value: ", value)
+            extracted_features.append(value)
+            if (isinstance(value, float)):
+                n += 1
+            else:
+                n  += value.__len__()
+        #print("/Window end", n)
+
+
+            #print (str(func), " number of features: ", str(len(extracted_features)-len_extracted_feature_before))
         all_features.append(np.hstack(extracted_features))
-
+    print("Len all_features: ", len(all_features))
+    #print("number of features ", len(all_features))
     one_large_array = np.vstack(all_features)
-
+    #print("")
     if remove_sign_after_calculation:
         np.absolute(one_large_array, one_large_array)
-
+    print(one_large_array.shape)
     return one_large_array
 
 
-def segment_labels(label_data, sampling_rate=100, window_length=3.0, overlap=0.0):
+def segment_labels(label_data, sampling_rate=1, window_length=3.0, overlap=0.0):
     window_samples = int(sampling_rate * window_length)
     step_size = int(round(window_samples * (1.0 - overlap)))
 

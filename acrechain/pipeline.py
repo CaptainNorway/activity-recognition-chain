@@ -6,10 +6,37 @@ from time import time
 
 import pandas.errors
 import pandas as pd
-from .conversion import timesync_from_cwa
-from .segment_and_calculate_features import segment_acceleration_and_calculate_features
+from acrechain.conversion import timesync_from_cwa
+from acrechain.segment_and_calculate_features import segment_acceleration_and_calculate_features
 
 model_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), "models")
+model_folder_reduced_features = os.path.join(os.path.dirname(os.path.abspath(__file__)), "models_reduced_features")
+data_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), "Data")
+
+
+data_paths = {
+    1: os.path.join(data_folder, "001"),
+    2: os.path.join(data_folder, "002"),
+    3: os.path.join(data_folder, "003"),
+    4: os.path.join(data_folder, "004"),
+    5: os.path.join(data_folder, "005"),
+    6: os.path.join(data_folder, "006"),
+    8: os.path.join(data_folder, "008"),
+    9: os.path.join(data_folder, "009"),
+    10: os.path.join(data_folder, "010"),
+    11: os.path.join(data_folder, "011"),
+    12: os.path.join(data_folder, "012"),
+    13: os.path.join(data_folder, "013"),
+    14: os.path.join(data_folder, "014"),
+    15: os.path.join(data_folder, "015"),
+    16: os.path.join(data_folder, "016"),
+    17: os.path.join(data_folder, "017"),
+    18: os.path.join(data_folder, "018"),
+    19: os.path.join(data_folder, "019"),
+    20: os.path.join(data_folder, "020"),
+    21: os.path.join(data_folder, "021"),
+    22: os.path.join(data_folder, "022"),
+}
 
 model_paths = {
     100: os.path.join(model_folder, "healthy_3.0s_model_100.0hz.pickle"),
@@ -23,81 +50,176 @@ model_paths = {
     1: os.path.join(model_folder, "healthy_3.0s_model_1.0hz.pickle"),
 }
 
-models = dict()
+model_reduced_feature_paths = {
+    1: os.path.join(model_folder_reduced_features, "healthy_3.0s_model_1.0hz_reduced.pickle")
+}
 
+models = dict()
+models_reduced_features = dict()
 for hz in model_paths:
     with open(model_paths[hz], "rb") as f:
         models[hz] = pickle.load(f)
+for hz in model_reduced_feature_paths:
+    with open(model_reduced_feature_paths[hz], "rb") as f:
+        models_reduced_features[hz] = pickle.load(f)
 
 window_length = 3.0
 overlap = 0.0
 
 
-def complete_end_to_end_prediction(back_cwa, thigh_cwa, end_result_path, sampling_frequency=100,
-                                   minutes_to_read_in_a_chunk=15):
-    a = time()
-    back_csv_path, thigh_csv_path, time_csv_path = timesync_from_cwa(back_cwa, thigh_cwa)
-    b = time()
-    print("TIME: Conversion and sync:", format(b - a, ".2f"), "s")
-    a = time()
-    predictions = load_csv_and_extract_features(back_csv_path, thigh_csv_path, sampling_frequency,
-                                                minutes_to_read_in_a_chunk)
-    b = time()
-    print("TIME: Feature extraction and prediction:", format(b - a, ".2f"), "s")
-    time_stamp_skip = int(sampling_frequency * window_length * (1.0 - overlap))
-    a = time()
-    with open(time_csv_path, "r") as t:
-        time_stamp_lines = [_.strip() for _ in itertools.islice(t, 0, None, time_stamp_skip)]
+def complete_end_to_end_prediction(back_cwa, thigh_cwa, end_result_path, sampling_frequency=1, minutes_to_read_in_a_chunk=15, reduced_feature_set = False):
+    #a = time()
+    #back_csv_path, thigh_csv_path, time_csv_path = timesync_from_cwa(back_cwa, thigh_cwa)
 
-    output_lines = [tsl + ", " + str(pred) + "\n" for tsl, pred in zip(time_stamp_lines, predictions)]
+    back_csv_path = os.path.join(data_paths[6], "006_LOWERBACK.csv")
+    thigh_csv_path = os.path.join(data_paths[6], "006_THIGH.csv")
 
-    with open(end_result_path, "w") as ef:
-        ef.writelines(output_lines)
-    b = time()
-    print("TIME: Writing to disk:", format(b - a, ".2f"), "s")
+    #b = time()
+    #print("TIME: Conversion and sync:", format(b - a, ".2f"), "s")
 
-    for tmp_file in [back_csv_path, thigh_csv_path, time_csv_path]:
-        os.remove(tmp_file)
+    if (reduced_feature_set):
+        c = time()
+        predictions = load_csv_and_extract_features(back_csv_path, thigh_csv_path, sampling_frequency,
+                                                    minutes_to_read_in_a_chunk, reduced_feature_set)
+        d = time()
+        print("TIME: Feature extraction and prediction with reduced feature set:", format(d - c, ".2f"), "s")
+    else:
+        a = time()
+        predictions = load_csv_and_extract_features(back_csv_path, thigh_csv_path, sampling_frequency,
+                                                    minutes_to_read_in_a_chunk, reduced_feature_set = False)
+        b = time()
+        print("TIME: Feature extraction and prediction:", format(b - a, ".2f"), "s")
+        time_stamp_skip = int(sampling_frequency * window_length * (1.0 - overlap))
+    #a = time()
 
 
-def load_csv_and_extract_features(back_csv_path, thigh_csv_path, sampling_frequency, minutes_to_read_in_a_chunk):
+
+    #with open(time_csv_path, "r") as t:
+    #    time_stamp_lines = [_.strip() for _ in itertools.islice(t, 0, None, time_stamp_skip)]
+
+    #output_lines = [tsl + ", " + str(pred) + "\n" for tsl, pred in zip(time_stamp_lines, predictions)]
+
+   # with open(end_result_path, "w") as ef:
+    #    ef.writelines(output_lines)
+    #b = time()
+    #print("TIME: Writing to disk:", format(b - a, ".2f"), "s")
+
+    #for tmp_file in [back_csv_path, thigh_csv_path, time_csv_path]:
+    #    os.remove(tmp_file)
+
+
+
+def getFeatureIndexes(feature_importances, features_top_percentage):
+    number_of_features = int(features_top_percentage*len(feature_importances))
+    print("Number of features wanted: ", number_of_features)
+    feature_importances_sorted = np.sort(feature_importances)
+    #print("Feature importances sorted", feature_importances_sorted)
+    feature_threshold = feature_importances_sorted[-number_of_features]
+    #print("Feature threshold: ", feature_threshold)
+
+    feature_indexes = []
+    for i in range(len(feature_importances)):
+        if len(feature_indexes) < number_of_features:
+            #print("Feature importance: ", feature_importances[i], " feature threshold: ", feature_threshold)
+            if feature_importances[i] >= feature_threshold:
+                feature_indexes.append(i)
+        else:
+            break
+    #print("Number of features extracted: ", len(feature_indexes))
+    return feature_indexes
+
+
+def load_csv_and_extract_features(back_csv_path, thigh_csv_path, sampling_frequency, minutes_to_read_in_a_chunk, reduced_feature_set):
     number_of_samples_in_a_window = int(sampling_frequency * window_length)
     number_of_windows_to_read = int(round(minutes_to_read_in_a_chunk * 60 / window_length))
     number_of_samples_to_read = number_of_samples_in_a_window * number_of_windows_to_read
 
+    print("Number of samples in a window: ", number_of_samples_in_a_window)
+    print("Number of windows to read: ", number_of_windows_to_read)
+    print("Number of samples to read", number_of_samples_to_read)
+
     window_start = 0
 
     predictions = []
+    if(reduced_feature_set):
+        feature_importances = models[sampling_frequency].feature_importances_
+        indexes = getFeatureIndexes(feature_importances, 0.4)
+        #print("Indexes: ", indexes)
 
+    sum_time_extract_windows_csv = 0
+    sum_time_calculate_features = 0
+    sum_time_predict = 0
     while True:
         try:
+            a = time()
             this_back_window = pd.read_csv(back_csv_path, skiprows=window_start, nrows=number_of_samples_to_read,
                                            delimiter=",", header=None).as_matrix()
             this_thigh_window = pd.read_csv(thigh_csv_path, skiprows=window_start, nrows=number_of_samples_to_read,
                                             delimiter=",", header=None).as_matrix()
+            b = time()
+            sum_time_extract_windows_csv += b-a
 
             window_start += number_of_samples_to_read
 
+            c = time()
             back_features = segment_acceleration_and_calculate_features(this_back_window,
                                                                         sampling_rate=sampling_frequency,
                                                                         window_length=window_length, overlap=overlap)
+
+
             thigh_features = segment_acceleration_and_calculate_features(this_thigh_window,
                                                                          sampling_rate=sampling_frequency,
                                                                          window_length=window_length, overlap=overlap)
 
             boths_features = np.hstack((back_features, thigh_features))
-            this_windows_predictions = models[sampling_frequency].predict(boths_features)
+            d = time()
+
+            sum_time_calculate_features += d-c
+
+
+            if (reduced_feature_set):
+                a = time()
+                boths_features = boths_features[:, indexes]
+                this_windows_predictions = models_reduced_features[sampling_frequency].predict(boths_features)
+                b = time()
+                sum_time_predict += b-a
+
+            else:
+                a = time()
+                this_windows_predictions = models[sampling_frequency].predict(boths_features)
+                b = time()
+                sum_time_predict += b-a
+
+
+            #print("Features fed into RFC: ", boths_features.shape)
+            #print("Tree has ", models[sampling_frequency].n_features_, " features!" )
+
             predictions.append(this_windows_predictions)
+            #print("len(predictions): ", len(predictions))
         except pandas.errors.EmptyDataError:  # There are no more lines to read
             break
 
     predictions = np.hstack(predictions)
+    print("TIME: Extract windows from CSV files: ", format(sum_time_extract_windows_csv, ".2f"), "s")
+    print("TIME: Calculate features: ", format(sum_time_calculate_features, ".2f"), "s")
+    print("TIME: Predict: ", format(sum_time_predict, ".2f"), "s")
     return predictions
 
 
 if __name__ == "__main__":
-    cwa_1 = os.path.join(os.path.dirname(os.path.abspath(__file__)), "S03_LB.cwa")
-    cwa_2 = os.path.join(os.path.dirname(os.path.abspath(__file__)), "S03_RT.cwa")
+    #cwa_1 = os.path.join(os.path.dirname(os.path.abspath(__file__)), "S03_LB.cwa")
+    #cwa_2 = os.path.join(os.path.dirname(os.path.abspath(__file__)), "S03_RT.cwa")
+    cwa_1=0
+    cwa_2=0
     output_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "timestamped_predictions.csv")
-
     complete_end_to_end_prediction(cwa_1, cwa_2, output_path, minutes_to_read_in_a_chunk=60)
+
+
+    #back_csv_path = os.path.join(data_paths[6], "006_LOWERBACK.csv")
+    #thigh_csv_path = os.path.join(data_paths[6], "006_THIGH.csv")
+
+    #predictions = load_csv_and_extract_features(back_csv_path, thigh_csv_path, 100, 15, 0)
+    #print(len(predictions))
+    #for v in predictions:
+    #   print(v)
+

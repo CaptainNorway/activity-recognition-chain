@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="WebServers">
+    <option name="servers">
+      <webServer id="8b7e1568-79c2-4ac5-b8b7-e5349110beaa" name="samuel01" url="http://samuel01.idi.ntnu.no">
+        <fileTransfer host="samuel01.idi.ntnu.no" port="22">
+          <advancedOptions>
+            <advancedOptions dataProtectionLevel="Private" />
+          </advancedOptions>
+          <option name="port" value="22" />
+        </fileTransfer>
+      </webServer>
+    </option>
+  </component>
+</project>
