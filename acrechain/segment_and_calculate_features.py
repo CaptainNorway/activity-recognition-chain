@@ -2,9 +2,11 @@ from collections import Counter
 
 import numpy as np
 import scipy.stats
+import pickle
+import acrechain.definitions as definitions
+import acrechain.function_selection
+import os
 
-
-feature_indexes = []
 
 
 def generate_all_integer_combinations(stop_integer):
@@ -197,7 +199,7 @@ def frequency_domain_factory(sample_rate):
     return frequency_domain_features
 
 
-def segment_acceleration_and_calculate_features(sensor_data, sampling_rate=1, window_length=3.0, overlap=0.0,
+def segment_acceleration_and_calculate_features(sensor_data, function_dict,  sampling_rate, window_length=3.0, overlap=0.0,
                                                 remove_sign_after_calculation=True):
     #print("len sensor data: ", sensor_data.shape)
     functions = [
@@ -214,53 +216,92 @@ def segment_acceleration_and_calculate_features(sensor_data, sampling_rate=1, wi
         maxmin_range,
         interquartile_range,
         magnitude_avg_and_std,
-        frequency_domain_factory(100),
+        frequency_domain_factory(sampling_rate),
     ]
+
+
 
     if len(sensor_data.shape) > 1:
         column_index_combinations = generate_all_integer_combinations(sensor_data.shape[1])
 
         functions += [column_product_factory(t) for t in column_index_combinations]
 
+
+
+
+
     window_samples = int(sampling_rate * window_length)
-    #print("Windows samples ", window_samples)
+    print("Windows samples ", window_samples)
     step_size = int(round(window_samples * (1.0 - overlap)))
+
 
     all_features = []
 
-  #  for window_start in np.arange(0, sensor_data.shape[0], step_size):
-    for window_start in np.arange(0, step_size):
+
+    for window_start in np.arange(0, sensor_data.shape[0], step_size):
+        print("Window start: ", window_start, "Sensor_data.shape[0]: ", sensor_data.shape[0], step_size)
         window_start = int(round(window_start))
         window_end = window_start + int(round(window_samples))
         if window_end > sensor_data.shape[0]:
             break
         window = sensor_data[window_start:window_end]
 
-        #extracted_features = [func(window) for func in functions]
+        print("Window", window)
+        #print("Step size ", step_size)
+        #print("Window ", window)
+        # extracted_features = [func(window) for func in functions]
         extracted_features = []
-        #print("Windows start: ")
+        # print("Windows start: ")
+        index_of_function = 0
         n = 0
-        for func in functions:
-            len_extracted_feature_before = len(extracted_features)
-            value = func(window)
-            #print("Value: ", value)
-            extracted_features.append(value)
-            if (isinstance(value, float)):
-                n += 1
-            else:
-                n  += value.__len__()
-        #print("/Window end", n)
+
+        if(not type(function_dict) == int):
+
+            for function, index in function_dict.keys():
+                len_extracted_feature_before = len(extracted_features)
+                value = functions[index](window)
+                if (isinstance(value, float)):
+                    extracted_features.append(value)
+                    n += 1
+                else:
+                    n += value.__len__()
+                    #print("Value: ", value, value.__len__(), type(value))
+                    if(type(value) == tuple):
+                        value = np.asarray(value)
+                    feature_indexes = function_dict[(function, index)]
+                    #print(feature_indexes)
+                    extracted_features.append(value[feature_indexes])
+
+                    # print("/Window end", n)
 
 
-            #print (str(func), " number of features: ", str(len(extracted_features)-len_extracted_feature_before))
-        all_features.append(np.hstack(extracted_features))
-    print("Len all_features: ", len(all_features))
-    #print("number of features ", len(all_features))
+
+            #print (function, " number of features: ", str(len(extracted_features)-len_extracted_feature_before))
+            all_features.append(np.hstack(extracted_features))
+
+        else:
+            for func in functions:
+                len_extracted_feature_before = len(extracted_features)
+                value = func(window)
+                if (isinstance(value, float)):
+                    n += 1
+                else:
+                    n += value.__len__()
+
+                extracted_features.append(value)
+
+                    # print("/Window end", n)
+
+            # print (function, " number of features: ", str(len(extracted_features)-len_extracted_feature_before))
+            all_features.append(np.hstack(extracted_features))
+
+    #print("Len all_features: ", len(all_features))
+    # print("number of features ", len(all_features))
     one_large_array = np.vstack(all_features)
-    #print("")
+    # print("")
     if remove_sign_after_calculation:
         np.absolute(one_large_array, one_large_array)
-    print(one_large_array.shape)
+    #print(one_large_array.shape)
     return one_large_array
 
 

@@ -8,9 +8,11 @@ import pandas.errors
 import pandas as pd
 from acrechain.conversion import timesync_from_cwa
 from acrechain.segment_and_calculate_features import segment_acceleration_and_calculate_features
+from acrechain.function_selection import getFunctions
 
 model_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), "models")
 model_folder_reduced_features = os.path.join(os.path.dirname(os.path.abspath(__file__)), "models_reduced_features")
+indexes_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), "indexes")
 data_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), "Data")
 
 
@@ -54,20 +56,33 @@ model_reduced_feature_paths = {
     1: os.path.join(model_folder_reduced_features, "healthy_3.0s_model_1.0hz_reduced.pickle")
 }
 
+indexes_paths = {
+    1: os.path.join(indexes_folder, "indexes_0.4_percent_healthy_3.0s_model_1.0hz_reduced.pickle")
+}
+
+
 models = dict()
 models_reduced_features = dict()
+indexes = dict()
+
 for hz in model_paths:
     with open(model_paths[hz], "rb") as f:
         models[hz] = pickle.load(f)
+
 for hz in model_reduced_feature_paths:
     with open(model_reduced_feature_paths[hz], "rb") as f:
         models_reduced_features[hz] = pickle.load(f)
+
+for hz in indexes_paths:
+    with open(indexes_paths[hz], "rb") as f:
+        indexes[hz] = pickle.load(f)
+
 
 window_length = 3.0
 overlap = 0.0
 
 
-def complete_end_to_end_prediction(back_cwa, thigh_cwa, end_result_path, sampling_frequency=1, minutes_to_read_in_a_chunk=15, reduced_feature_set = False):
+def complete_end_to_end_prediction(back_cwa, thigh_cwa, end_result_path, sampling_frequency, reduced_feature_set, minutes_to_read_in_a_chunk=15):
     #a = time()
     #back_csv_path, thigh_csv_path, time_csv_path = timesync_from_cwa(back_cwa, thigh_cwa)
 
@@ -80,7 +95,7 @@ def complete_end_to_end_prediction(back_cwa, thigh_cwa, end_result_path, samplin
     if (reduced_feature_set):
         c = time()
         predictions = load_csv_and_extract_features(back_csv_path, thigh_csv_path, sampling_frequency,
-                                                    minutes_to_read_in_a_chunk, reduced_feature_set)
+                                                    minutes_to_read_in_a_chunk, reduced_feature_set = True)
         d = time()
         print("TIME: Feature extraction and prediction with reduced feature set:", format(d - c, ".2f"), "s")
     else:
@@ -109,25 +124,6 @@ def complete_end_to_end_prediction(back_cwa, thigh_cwa, end_result_path, samplin
 
 
 
-def getFeatureIndexes(feature_importances, features_top_percentage):
-    number_of_features = int(features_top_percentage*len(feature_importances))
-    print("Number of features wanted: ", number_of_features)
-    feature_importances_sorted = np.sort(feature_importances)
-    #print("Feature importances sorted", feature_importances_sorted)
-    feature_threshold = feature_importances_sorted[-number_of_features]
-    #print("Feature threshold: ", feature_threshold)
-
-    feature_indexes = []
-    for i in range(len(feature_importances)):
-        if len(feature_indexes) < number_of_features:
-            #print("Feature importance: ", feature_importances[i], " feature threshold: ", feature_threshold)
-            if feature_importances[i] >= feature_threshold:
-                feature_indexes.append(i)
-        else:
-            break
-    #print("Number of features extracted: ", len(feature_indexes))
-    return feature_indexes
-
 
 def load_csv_and_extract_features(back_csv_path, thigh_csv_path, sampling_frequency, minutes_to_read_in_a_chunk, reduced_feature_set):
     number_of_samples_in_a_window = int(sampling_frequency * window_length)
@@ -141,10 +137,7 @@ def load_csv_and_extract_features(back_csv_path, thigh_csv_path, sampling_freque
     window_start = 0
 
     predictions = []
-    if(reduced_feature_set):
-        feature_importances = models[sampling_frequency].feature_importances_
-        indexes = getFeatureIndexes(feature_importances, 0.4)
-        #print("Indexes: ", indexes)
+
 
     sum_time_extract_windows_csv = 0
     sum_time_calculate_features = 0
@@ -156,22 +149,42 @@ def load_csv_and_extract_features(back_csv_path, thigh_csv_path, sampling_freque
                                            delimiter=",", header=None).as_matrix()
             this_thigh_window = pd.read_csv(thigh_csv_path, skiprows=window_start, nrows=number_of_samples_to_read,
                                             delimiter=",", header=None).as_matrix()
+
+
+
+            print(this_thigh_window.size, this_thigh_window.shape)
+
             b = time()
             sum_time_extract_windows_csv += b-a
 
             window_start += number_of_samples_to_read
 
+            if (reduced_feature_set):
+                a = time()
+                back_funtions = getFunctions("back")
+                thigh_functions = getFunctions("thigh")
+
+                b = time()
+
+                print()
+
+            else:
+                back_functions, thigh_functions = 0 , 0
+
             c = time()
-            back_features = segment_acceleration_and_calculate_features(this_back_window,
+
+            back_features = segment_acceleration_and_calculate_features(this_back_window, back_functions,
                                                                         sampling_rate=sampling_frequency,
                                                                         window_length=window_length, overlap=overlap)
 
 
-            thigh_features = segment_acceleration_and_calculate_features(this_thigh_window,
+            thigh_features = segment_acceleration_and_calculate_features(this_thigh_window, thigh_functions,
                                                                          sampling_rate=sampling_frequency,
                                                                          window_length=window_length, overlap=overlap)
 
             boths_features = np.hstack((back_features, thigh_features))
+            print("Features fed into RFC: ", boths_features.shape)
+
             d = time()
 
             sum_time_calculate_features += d-c
@@ -179,20 +192,20 @@ def load_csv_and_extract_features(back_csv_path, thigh_csv_path, sampling_freque
 
             if (reduced_feature_set):
                 a = time()
-                boths_features = boths_features[:, indexes]
                 this_windows_predictions = models_reduced_features[sampling_frequency].predict(boths_features)
+                print("Tree has ", models_reduced_features[sampling_frequency].n_features_, " features!")
                 b = time()
                 sum_time_predict += b-a
 
             else:
                 a = time()
                 this_windows_predictions = models[sampling_frequency].predict(boths_features)
+                print("Tree has ", models[sampling_frequency].n_features_, " features!")
                 b = time()
                 sum_time_predict += b-a
 
 
-            #print("Features fed into RFC: ", boths_features.shape)
-            #print("Tree has ", models[sampling_frequency].n_features_, " features!" )
+
 
             predictions.append(this_windows_predictions)
             #print("len(predictions): ", len(predictions))
@@ -211,15 +224,20 @@ if __name__ == "__main__":
     #cwa_2 = os.path.join(os.path.dirname(os.path.abspath(__file__)), "S03_RT.cwa")
     cwa_1=0
     cwa_2=0
+
+    reduced_feature_set = False
+    sampling_frequency = 1
+    #keep_rate = int(round(100/sampling_frequency))
+
     output_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "timestamped_predictions.csv")
-    complete_end_to_end_prediction(cwa_1, cwa_2, output_path, minutes_to_read_in_a_chunk=60)
+    complete_end_to_end_prediction(cwa_1, cwa_2, output_path, sampling_frequency, reduced_feature_set, minutes_to_read_in_a_chunk=60)
+
 
 
     #back_csv_path = os.path.join(data_paths[6], "006_LOWERBACK.csv")
     #thigh_csv_path = os.path.join(data_paths[6], "006_THIGH.csv")
 
-    #predictions = load_csv_and_extract_features(back_csv_path, thigh_csv_path, 100, 15, 0)
+    #predictions = load_csv_and_extract_features(back_csv_path, thigh_csv_path, 100, 15, 1)
     #print(len(predictions))
     #for v in predictions:
     #   print(v)
-
