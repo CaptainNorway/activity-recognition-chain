@@ -61,6 +61,8 @@ def most_frequent_value(array):
 
     counts = Counter(array)
     top = counts.most_common(1)[0][0]
+    print("!!!!!!!!!!!!!!!")
+    print(np.array([top]))
     return np.array([top])
 
 
@@ -156,7 +158,7 @@ def interquartile_range(array):
 def magnitude_avg_and_std(array):
     magnitude = np.linalg.norm(array, axis=1)
     #print("Fdddddd", np.average(magnitude))
-    #print("DDDDDDDD", np.average(magnitude))
+    #print("DDDDDDDD", np.average(magnitude
     return np.average(magnitude), np.std(magnitude)
 
 
@@ -199,8 +201,8 @@ def frequency_domain_factory(sample_rate):
     return frequency_domain_features
 
 
-def segment_acceleration_and_calculate_features(sensor_data, function_dict,  sampling_rate, window_length=3.0, overlap=0.0,
-                                                remove_sign_after_calculation=True):
+def segment_acceleration_and_calculate_features(sensor_data, function_dict, sampling_rate, window_length=3.0, overlap=0.0,
+                                                remove_sign_after_calculation=True, print_stats = False):
     #print("len sensor data: ", sensor_data.shape)
     functions = [
         means_and_std_factory(False),
@@ -231,22 +233,24 @@ def segment_acceleration_and_calculate_features(sensor_data, function_dict,  sam
 
 
     window_samples = int(sampling_rate * window_length)
-    print("Windows samples ", window_samples)
+    #print("Windows samples ", window_samples)
     step_size = int(round(window_samples * (1.0 - overlap)))
 
 
     all_features = []
 
 
+    print("Function dict passed to segment acceleration and calculate features: ", function_dict)
+    iteration = 0
     for window_start in np.arange(0, sensor_data.shape[0], step_size):
-        print("Window start: ", window_start, "Sensor_data.shape[0]: ", sensor_data.shape[0], step_size)
+        #print("Window start: ", window_start, "Sensor_data.shape[0]: ", sensor_data.shape[0], step_size)
         window_start = int(round(window_start))
         window_end = window_start + int(round(window_samples))
         if window_end > sensor_data.shape[0]:
             break
         window = sensor_data[window_start:window_end]
 
-        print("Window", window)
+        #print("Window", window)
         #print("Step size ", step_size)
         #print("Window ", window)
         # extracted_features = [func(window) for func in functions]
@@ -255,13 +259,17 @@ def segment_acceleration_and_calculate_features(sensor_data, function_dict,  sam
         index_of_function = 0
         n = 0
 
+
+
         if(not type(function_dict) == int):
 
+            function_number_in_function_dict = 0
             for function, index in function_dict.keys():
                 len_extracted_feature_before = len(extracted_features)
                 value = functions[index](window)
                 if (isinstance(value, float)):
                     extracted_features.append(value)
+                    extracted_value = value
                     n += 1
                 else:
                     n += value.__len__()
@@ -270,10 +278,13 @@ def segment_acceleration_and_calculate_features(sensor_data, function_dict,  sam
                         value = np.asarray(value)
                     feature_indexes = function_dict[(function, index)]
                     #print(feature_indexes)
-                    extracted_features.append(value[feature_indexes])
-
+                    extracted_value = value[feature_indexes]
+                    value = extracted_features.append(value[feature_indexes])
                     # print("/Window end", n)
-
+                if(print_stats and iteration < 1):
+                    #print(function, index, value, "value_index: ", function_dict[(function, index)], "Value addded: ", extracted_value)
+                    print("Function number: ", function_number_in_function_dict, " that was calculated is function: ", function)
+                function_number_in_function_dict +=1
 
 
             #print (function, " number of features: ", str(len(extracted_features)-len_extracted_feature_before))
@@ -295,6 +306,7 @@ def segment_acceleration_and_calculate_features(sensor_data, function_dict,  sam
             # print (function, " number of features: ", str(len(extracted_features)-len_extracted_feature_before))
             all_features.append(np.hstack(extracted_features))
 
+        iteration += 1
     #print("Len all_features: ", len(all_features))
     # print("number of features ", len(all_features))
     one_large_array = np.vstack(all_features)

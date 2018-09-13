@@ -6,14 +6,19 @@ from time import time
 
 import pandas.errors
 import pandas as pd
+from acrechain import definitions
 from acrechain.conversion import timesync_from_cwa
 from acrechain.segment_and_calculate_features import segment_acceleration_and_calculate_features
 from acrechain.function_selection import getFunctions
+
+project_root = os.path.dirname(os.path.abspath(__file__))
+
 
 model_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), "models")
 model_folder_reduced_features = os.path.join(os.path.dirname(os.path.abspath(__file__)), "models_reduced_features")
 indexes_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), "indexes")
 data_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), "Data")
+hunt4_data_folder = os.path.join(project_root, "DATA_HUNT4")
 
 
 data_paths = {
@@ -65,13 +70,13 @@ models = dict()
 models_reduced_features = dict()
 indexes = dict()
 
-for hz in model_paths:
-    with open(model_paths[hz], "rb") as f:
-        models[hz] = pickle.load(f)
+#for hz in model_paths:
+#    with open(model_paths[hz], "rb") as f:
+#       models[hz] = pickle.load(f)
 
-for hz in model_reduced_feature_paths:
-    with open(model_reduced_feature_paths[hz], "rb") as f:
-        models_reduced_features[hz] = pickle.load(f)
+#for hz in model_reduced_feature_paths:
+#    with open(model_reduced_feature_paths[hz], "rb") as f:
+ #       models_reduced_features[hz] = pickle.load(f)
 
 for hz in indexes_paths:
     with open(indexes_paths[hz], "rb") as f:
@@ -86,8 +91,8 @@ def complete_end_to_end_prediction(back_cwa, thigh_cwa, end_result_path, samplin
     #a = time()
     #back_csv_path, thigh_csv_path, time_csv_path = timesync_from_cwa(back_cwa, thigh_cwa)
 
-    back_csv_path = os.path.join(data_paths[6], "006_LOWERBACK.csv")
-    thigh_csv_path = os.path.join(data_paths[6], "006_THIGH.csv")
+    #back_csv_path = os.path.join(data_paths[6], "006_LOWERBACK.csv")
+    #thigh_csv_path = os.path.join(data_paths[6], "006_THIGH.csv")
 
     #b = time()
     #print("TIME: Conversion and sync:", format(b - a, ".2f"), "s")
@@ -98,6 +103,8 @@ def complete_end_to_end_prediction(back_cwa, thigh_cwa, end_result_path, samplin
                                                     minutes_to_read_in_a_chunk, reduced_feature_set = True)
         d = time()
         print("TIME: Feature extraction and prediction with reduced feature set:", format(d - c, ".2f"), "s")
+
+
     else:
         a = time()
         predictions = load_csv_and_extract_features(back_csv_path, thigh_csv_path, sampling_frequency,
@@ -125,14 +132,20 @@ def complete_end_to_end_prediction(back_cwa, thigh_cwa, end_result_path, samplin
 
 
 
-def load_csv_and_extract_features(back_csv_path, thigh_csv_path, sampling_frequency, minutes_to_read_in_a_chunk, reduced_feature_set):
+def load_csv_and_extract_features(back_csv_path, thigh_csv_path, sampling_frequency, feature_importances, RFC_model_with_feature_count_features, minutes_to_read_in_a_chunk, print_stats = False):
+
+    feature_count = len(feature_importances)
+
     number_of_samples_in_a_window = int(sampling_frequency * window_length)
     number_of_windows_to_read = int(round(minutes_to_read_in_a_chunk * 60 / window_length))
     number_of_samples_to_read = number_of_samples_in_a_window * number_of_windows_to_read
 
-    print("Number of samples in a window: ", number_of_samples_in_a_window)
-    print("Number of windows to read: ", number_of_windows_to_read)
-    print("Number of samples to read", number_of_samples_to_read)
+    if(print_stats):
+
+
+        print("Number of samples in a window: ", number_of_samples_in_a_window)
+        print("Number of windows to read: ", number_of_windows_to_read)
+        print("Number of samples to read", number_of_samples_to_read)
 
     window_start = 0
 
@@ -159,52 +172,54 @@ def load_csv_and_extract_features(back_csv_path, thigh_csv_path, sampling_freque
 
             window_start += number_of_samples_to_read
 
-            if (reduced_feature_set):
-                a = time()
-                back_funtions = getFunctions("back")
-                thigh_functions = getFunctions("thigh")
 
-                b = time()
+            back_functions = getFunctions("back", feature_importances, print_stats)
+            thigh_functions = getFunctions("thigh", feature_importances, print_stats)
 
-                print()
 
-            else:
-                back_functions, thigh_functions = 0 , 0
 
             c = time()
 
-            back_features = segment_acceleration_and_calculate_features(this_back_window, back_functions,
+
+            if (not len(back_functions) == 0):
+                back_features = segment_acceleration_and_calculate_features(this_back_window, back_functions,
                                                                         sampling_rate=sampling_frequency,
-                                                                        window_length=window_length, overlap=overlap)
+                                                                        window_length=window_length, overlap=overlap, print_stats=print_stats)
 
+                #print("back_features", back_features)
+                print("shape back_features", back_features.shape)
 
-            thigh_features = segment_acceleration_and_calculate_features(this_thigh_window, thigh_functions,
+            if(not len(thigh_functions) == 0):
+                thigh_features = segment_acceleration_and_calculate_features(this_thigh_window, thigh_functions,
                                                                          sampling_rate=sampling_frequency,
-                                                                         window_length=window_length, overlap=overlap)
+                                                                         window_length=window_length, overlap=overlap, print_stats=print_stats)
 
-            boths_features = np.hstack((back_features, thigh_features))
+                #print("thigh_features", thigh_features)
+                print("thigh features shape", thigh_features.shape)
+
+            if(not len(back_functions) == 0 and not len(thigh_functions) == 0):
+                boths_features = np.hstack((back_features, thigh_features))
+            else:
+                if(len(back_functions) == 0):
+                    boths_features = thigh_features
+                else:
+                    boths_features = back_features
+
+
             print("Features fed into RFC: ", boths_features.shape)
+            print(boths_features)
 
             d = time()
 
             sum_time_calculate_features += d-c
 
 
-            if (reduced_feature_set):
-                a = time()
-                this_windows_predictions = models_reduced_features[sampling_frequency].predict(boths_features)
-                print("Tree has ", models_reduced_features[sampling_frequency].n_features_, " features!")
-                b = time()
-                sum_time_predict += b-a
 
-            else:
-                a = time()
-                this_windows_predictions = models[sampling_frequency].predict(boths_features)
-                print("Tree has ", models[sampling_frequency].n_features_, " features!")
-                b = time()
-                sum_time_predict += b-a
-
-
+            a = time()
+            this_windows_predictions = RFC_model_with_feature_count_features.predict(boths_features)
+            print("Tree has ", RFC_model_with_feature_count_features.n_features_, " features!")
+            b = time()
+            sum_time_predict += b-a
 
 
             predictions.append(this_windows_predictions)
@@ -216,21 +231,44 @@ def load_csv_and_extract_features(back_csv_path, thigh_csv_path, sampling_freque
     print("TIME: Extract windows from CSV files: ", format(sum_time_extract_windows_csv, ".2f"), "s")
     print("TIME: Calculate features: ", format(sum_time_calculate_features, ".2f"), "s")
     print("TIME: Predict: ", format(sum_time_predict, ".2f"), "s")
-    return predictions
+
+    time_statistics = {}
+    time_statistics["1.Extracting windows from CSVs"] = sum_time_extract_windows_csv
+    time_statistics["2.Calculate features for all windows"] = sum_time_calculate_features
+    time_statistics["3.Predicting"] = sum_time_predict
+
+
+    return predictions, time_statistics
+
+
+
+
+
 
 
 if __name__ == "__main__":
-    #cwa_1 = os.path.join(os.path.dirname(os.path.abspath(__file__)), "S03_LB.cwa")
-    #cwa_2 = os.path.join(os.path.dirname(os.path.abspath(__file__)), "S03_RT.cwa")
-    cwa_1=0
-    cwa_2=0
+
+    cwa_1 = os.path.join(hunt4_data_folder, "4000006/4000006-28025_2018-04-19_B.cwa")
+    cwa_2 = os.path.join(hunt4_data_folder, "4000006/4000006-31954_2018-04-19_T.cwa")
 
     reduced_feature_set = False
-    sampling_frequency = 1
-    #keep_rate = int(round(100/sampling_frequency))
+    sampling_frequency = 100
+    keep_rate = int(round(100/sampling_frequency))
 
-    output_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "timestamped_predictions.csv")
-    complete_end_to_end_prediction(cwa_1, cwa_2, output_path, sampling_frequency, reduced_feature_set, minutes_to_read_in_a_chunk=60)
+
+    output_path = os.path.join(hunt4_data_folder, "timestamped_predictions_test.csv")
+
+    print(project_root)
+    print(hunt4_data_folder)
+    print(output_path)
+
+    print(cwa_1)
+    print(cwa_2)
+
+    back_csv_path, thigh_csv_path, time_csv_path = timesync_from_cwa(cwa_1, cwa_2)
+
+
+    #complete_end_to_end_prediction(cwa_1, cwa_2, output_path, sampling_frequency, reduced_feature_set, minutes_to_read_in_a_chunk=60)
 
 
 

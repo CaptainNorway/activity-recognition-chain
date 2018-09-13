@@ -16,6 +16,8 @@ def run_omconvert(input_cwa, output_wav_path=None, output_csv_path=None):
 
     shell_command = [omconvert_script, input_cwa]
 
+    print ("Shell command", shell_command)
+
     if output_wav_path is not None:
         print("WAV file will be output to", output_wav_path)
         shell_command += ['-out', output_wav_path]
