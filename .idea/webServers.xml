@@ -3,7 +3,7 @@
   <component name="WebServers">
     <option name="servers">
       <webServer id="8b7e1568-79c2-4ac5-b8b7-e5349110beaa" name="samuel01" url="http://samuel01.idi.ntnu.no">
-        <fileTransfer host="samuel01.idi.ntnu.no" port="22">
+        <fileTransfer host="samuel01.idi.ntnu.no" port="22" accessType="SFTP">
           <advancedOptions>
             <advancedOptions dataProtectionLevel="Private" />
           </advancedOptions>
